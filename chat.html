@@ -1,0 +1,169 @@
+<!DOCTYPE HTML>
+<html lang="zh-cn">
+<head>
+<meta charset="UTF-8">
+<title>在线聊天室</title>
+<meta name="author" content="Hito www.hitoy.org"/>
+<script>
+//定义初始化消息id
+var msgid=0;
+//定义姓名
+var chatname=getcookie('chatname');
+//定义用户邮箱
+var chatemail=getcookie('chatemail');
+//定义ajax发送地址
+var posturl="post.php";
+
+//获取COOKIE
+function getcookie(name){
+	if(!document.cookie)
+		return '';
+	var c=document.cookie;
+		var carr=c.split(";");
+		for(var i=0;i<carr.length;i++){
+			if(carr[i].indexOf(name+"=")>-1){
+				return 	unescape(carr[i].substring(carr[i].indexOf("=")+1));
+			}
+		}
+		return "";
+}
+//设置COOKIE
+function setcookie(name,value,days,path){
+		if(name==null) throw "COOKIE NAME MUST NOT BE EMPTY"; 
+		if(value==null) throw "COOKIE VALUE MUST NOT BE EMPTY";
+		if(days==null) days=0;
+		var exp=new Date();
+		exp.setTime(exp.getTime()+days*24*60*60*1000);
+		if(path==null) path="/";
+		document.cookie=name+"="+escape(value)+";expires="+exp.toGMTString()+";path="+path;
+	}
+//trim
+function trim(str){
+	return str.replace(/^\s+/i,"").replace(/\s+$/i,"");
+}
+
+
+//当用户第一次进入时，提示用户输入信息
+if(chatname==''){
+	chatname=escape(trim(prompt("第一步(共两步):请输入您的昵称 (必须)\n","大狗")));
+	chatemail=escape(trim(prompt("第二步(共两步):请输入您的邮箱地址\n用来获取您在gravatar上设置的个性头像 (非必须) \n")));
+	if (chatname==""){
+		alert("严重错误:用户名不能为空");
+		window.location.reload();
+	}
+	setcookie('chatname',chatname,30,'/');
+	setcookie('chatemail',chatemail,30,'/');
+}
+
+
+//获取ajax对象
+var xmlhttp;
+if(window.XMLHttpRequest){
+  xmlhttp=new XMLHttpRequest();
+}else{
+  xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+}
+
+
+//定义获取消息的函数
+function getmsg(id,callback){
+	xmlhttp.open("POST",posturl,true);
+	xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+	xmlhttp.send("action=get&id="+id);
+	xmlhttp.onreadystatechange=function(){
+		if (xmlhttp.readyState==4 && xmlhttp.status==200){
+			if(xmlhttp.responseText!="{init:0}")
+				callback.call(null,xmlhttp.responseText);
+		}else if(xmlhttp.readyState==4 && xmlhttp.status!=200){
+			alert('连接出错，请检查网络!');
+		}
+	}
+}
+
+//处理返回的json数据
+function appendmsg(msg){
+	if(!msg) return;
+	var m=eval("("+msg+")");
+	var pic='http://0.gravatar.com/avatar/'+unescape(m.pic)+'?s=35&d=&r=G';
+	var name=unescape(m.name);
+	var date=unescape(m.date);
+		var d=new Date();
+		d.setTime(date*1000);
+	var date=d.getFullYear()+"年"+d.getMonth()+1+"月"+d.getDate()+"日  "+d.getHours()+":"+d.getMinutes()+":"+d.getSeconds();
+	
+	var detail=unescape(m.detail);
+	var nid=unescape(m.nid);
+	//更新全局消息id
+	msgid=nid;
+
+	var content=document.createElement('div');
+	content.className="msg";
+	content.innerHTML='<img src="'+pic+'" title="'+name+'" alt="'+name+'" class="pic"><span class="brf">'+name+':&nbsp; '+date+'</span><span class="detail">'+detail+'</span>';
+	if(m.init==1){
+		//把返回内容插入消息框
+		var msgbox=document.getElementById("msgbox");
+		msgbox.insertBefore(content,msgbox.lastChild);
+		//自动滚动到最下
+		msgbox.scrollTop=msgbox.scrollHeight;
+	}
+}
+
+//自动获取消息
+setInterval(function(){
+	getmsg(msgid,appendmsg);
+},1500);
+
+//定义发送消息函数
+function sendmsg(){
+	var detail=trim(escape(document.getElementsByTagName("textarea")[0].value));
+	if(detail=="") return;
+	xmlhttp.open("POST",posturl,true);
+	xmlhttp.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+	xmlhttp.send("action=send&chatname="+chatname+"&chatemail="+chatemail+"&chatmsg="+detail);
+		xmlhttp.onreadystatechange=function(){
+			if (xmlhttp.readyState==4 && xmlhttp.status==200){
+				if(xmlhttp.responseText=="{init:0}"){alert('发送消息错误,请重新发送!')};
+			}else if(xmlhttp.readyState==4 && xmlhttp.status != 200){
+				alert('发送消息错误，请检查网络');
+			}
+		}
+		document.getElementsByTagName("textarea")[0].value="";
+}
+
+//按Ctrl+Enter键发送
+window.onkeyup=function(e){
+	var ev=e||window.event;
+	if (ev.ctrlKey && ev.keyCode==13){
+		sendmsg();
+	}
+}
+
+
+</script>
+<style>
+	* {margin:0;padding:0}
+	body {font-size:12px;font-family:Arial}
+	 .main {width:588px;height:512px;border:1px solid #ccc;border-radius:5px;margin:50px auto;background:#E8F4EF;box-shadow:0 0 50px #ccc}
+	 .title {width:100%;margin:10px;height:24px;line-height:24px}
+	 #msgbox {width:98%;height:310px;padding:5px 1%;background:#ececec;border-top:1px solid #acacac;border-bottom:1px solid #acacac;overflow-y:scroll;}
+	 #msgbox .msg {margin:10px 0;float:left;width:100%}
+	 .msg .pic {width:35px;height:35px;border-radius:3px;margin-right:10px;float:left}
+	 .msg .brf {float:left;width:500px;height:35px}
+	 .msg .detail {display:inline-block;background:#E2E6ED;border:1px solid #D5E0E0;border-radius:5px;box-shadow:1px 1px 4px #D5E0E0;line-height:20px;margin:-15px 0 0 45px;padding:10px}
+	 .enterbox {width:100%;height:120px;background:#f3f3f3;}
+	 .enterbox textarea {width:98%;height:100px;max-width:98%;max-height:100px;padding:0 1%;padding-top:5px;background:#f5f5f5;border:none;outline:none}
+	 .send {width:100px;height:25px;background:#4CB177;color:white;line-height:25px;float:right;margin-right:10px;margin-top:5px;text-align:center;border-radius:3px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="main">	
+	<div class="title">聊天室</div>
+	<div id="msgbox">
+	</div>
+	<div class="enterbox">
+		<textarea autofocus="1"></textarea>
+		<div class="send" onclick="sendmsg()">发送(Ctrl+Enter)</div>
+	</div>
+</div>
+</body>
+</html>
